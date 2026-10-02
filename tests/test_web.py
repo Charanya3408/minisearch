@@ -7,7 +7,7 @@ from minisearch.web import Site, make_server
 
 
 def start():
-    server = make_server(Site.load("missing.json"), 0)
+    server = make_server(Site.load("missing.json", live=False), 0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
 

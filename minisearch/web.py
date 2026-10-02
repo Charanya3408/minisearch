@@ -8,7 +8,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+from .answer import best_answer
+from .crawl import fetch_json
 from .index import InvertedIndex
+from .live import live_search
 from .sample import SAMPLE_DOCS
 from .tokenizer import stem, tokenize
 
@@ -73,27 +76,33 @@ def search_box(q: str = "") -> str:
 
 
 class Site:
-    def __init__(self, docs: list[dict], sample: bool = False):
+    def __init__(self, docs: list[dict], sample: bool = False, live: bool = True, fetch=None):
         self.index = InvertedIndex()
         self.meta = {}
         self.sample = sample
+        self.live = live
+        self.fetch = fetch or (lambda url: fetch_json(url, 8))
+        self.cache: dict[str, list[dict]] = {}
         for d in docs:
             self.index.add_document(d["id"], d["text"], d["title"])
             self.meta[d["id"]] = d
 
     @classmethod
-    def load(cls, path: str = "data/articles.json") -> "Site":
-        p = Path(path)
-        if p.exists():
-            return cls(json.loads(p.read_text(encoding="utf-8")))
+    def load(cls, path: str | None = None, live: bool = True) -> "Site":
+        names = [path] if path else ["data/articles_large.json", "data/articles.json"]
+        p = next((Path(n) for n in names if Path(n).exists()), None)
+        if p is not None:
+            return cls(json.loads(p.read_text(encoding="utf-8")), live=live)
         docs = [{"id": i, "title": t, "text": x, "thumb": "", "url": ""} for i, t, x in SAMPLE_DOCS]
-        return cls(docs, sample=True)
+        return cls(docs, sample=True, live=live)
 
     def visual(self, doc_id: str) -> str:
-        d = self.meta[doc_id]
+        return self.tile(self.meta[doc_id])
+
+    def tile(self, d: dict) -> str:
         if d.get("thumb"):
             return f'<img src="{esc(d["thumb"], quote=True)}" alt="" loading="lazy" referrerpolicy="no-referrer">'
-        c1, c2 = PAL[sum(map(ord, doc_id)) % len(PAL)]
+        c1, c2 = PAL[sum(map(ord, str(d["id"]))) % len(PAL)]
         return f'<div class="ph" style="background:linear-gradient(135deg,{c1},{c2})">{esc(d["title"][:1])}</div>'
 
     def chips(self) -> str:
@@ -114,16 +123,49 @@ class Site:
             note = '<p class="note">Showing the 10 built-in sample documents. Run <code>python -m minisearch.crawl</code> for real articles.</p>'
         body = (
             '<main><section class="hero"><div><h1>Search anything.<br>Ranked by BM25.</h1>'
-            f"<p>{len(self.index)} articles, indexed by an engine built from scratch.</p>{search_box()}</div>"
+            f"<p>{len(self.index)} articles in the local index. Anything else is looked up on Wikipedia live.</p>{search_box()}</div>"
             f"{HERO_SVG}</section>{note}{self.chips()}<h2>Explore</h2><div class=\"grid\">{cards}</div></main>"
         )
         return layout("minisearch", body)
+
+    def live_lookup(self, q: str) -> list[dict]:
+        if q not in self.cache:
+            self.cache[q] = live_search(q, fetch=self.fetch)
+        return self.cache[q]
+
+    def live_row(self, d: dict, qterms: set) -> str:
+        snip = highlight(snippet(d["text"], qterms), qterms)
+        return (f'<a class="res" href="{esc(d["url"], quote=True)}" target="_blank" rel="noopener">{self.tile(d)}'
+                f'<div><span class="badge">Wikipedia</span><h3>{esc(d["title"])}</h3><p>{snip}</p></div></a>')
+
+    def answer_box(self, ans, qterms: set) -> str:
+        if not ans:
+            return ""
+        ext = ' target="_blank" rel="noopener"' if ans.get("external") else ""
+        return ('<section class="answer"><span class="tag">Answer</span>'
+                f'<p>{highlight(ans["sentence"], qterms)}</p>'
+                f'<a href="{esc(ans["href"], quote=True)}"{ext}>{esc(ans["note"])}: {esc(ans["title"])}</a>'
+                '<small>Picked from an article, not generated. It can be incomplete.</small></section>')
 
     def results(self, q: str) -> str:
         qterms = set(tokenize(q))
         t0 = time.perf_counter()
         hits = self.index.search(q, k=20)
         ms = (time.perf_counter() - t0) * 1000
+        ans = best_answer(self.index, q)
+        if ans:
+            ans.update(href=f"/doc/{quote(ans['doc_id'])}", note="From your index")
+        live = []
+        if self.live and (ans is None or len(hits) < 5):
+            live = self.live_lookup(q)
+            if ans is None and live:
+                temp = InvertedIndex()
+                for d in live:
+                    temp.add_document(d["id"], d["text"], d["title"])
+                found = best_answer(temp, q)
+                if found:
+                    url = next(d["url"] for d in live if d["id"] == found["doc_id"])
+                    ans = {**found, "href": url, "note": "From Wikipedia, looked up live", "external": True}
         rows = []
         for doc_id, score in hits:
             d = self.meta[doc_id]
@@ -131,11 +173,18 @@ class Site:
             rows.append(
                 f'<a class="res" href="/doc/{quote(doc_id)}">{self.visual(doc_id)}'
                 f'<div><span class="score">{score:.2f}</span><h3>{esc(d["title"])}</h3><p>{snip}</p></div></a>')
-        if hits:
-            head = f'<p class="meta">{len(hits)} results in {ms:.2f} ms</p>'
-            content = head + "".join(rows)
+        extra = [d for d in live if d["id"] not in self.meta]
+        if hits or extra or ans:
+            head = f'<p class="meta">{len(hits)} results in {ms:.2f} ms from your index'
+            head += (f", plus {len(extra)} from Wikipedia" if extra else "") + "</p>"
+            more = ""
+            if extra:
+                more = '<h2 class="sec">More from Wikipedia <small>looked up live</small></h2>'
+                more += "".join(self.live_row(d, qterms) for d in extra)
+            content = head + self.answer_box(ans, qterms) + "".join(rows) + more
         else:
-            content = f'<div class="empty"><h2>No results for “{esc(q)}”</h2><p>Check the spelling or try a broader word.</p>{self.chips()}</div>'
+            content = (f'<div class="empty"><h2>No results for “{esc(q)}”</h2>'
+                       f'<p>Check the spelling or try a broader word. Live Wikipedia lookup needs an internet connection.</p>{self.chips()}</div>')
         return layout(f"{q} - minisearch", f'<main><div class="top">{search_box(q)}</div>{content}</main>')
 
     def article(self, doc_id: str):
@@ -165,7 +214,7 @@ class Site:
         steps = [
             ("#7c3aed", "#ec4899", "1. Tokenize", "Lowercase, split into words, drop filler words, trim endings so lists and list match."),
             ("#0ea5e9", "#19d3a2", "2. Index", "For every word, remember which documents contain it and how often. Like the index at the back of a book."),
-            ("#ff8a3d", "#ec4899", "3. Rank", "BM25 scores each match: rarer words count more, repeats count less and less, long documents are not favoured."),
+            ("#ff8a3d", "#ec4899", "3. Rank", "BM25 scores each match: rarer words count more, repeats count less and less, long documents are not favoured. Exact phrases get a bonus."),
             ("#19d3a2", "#38bdf8", "4. Top results", "A heap keeps just the best few instead of sorting every match."),
         ]
         cards = "".join(

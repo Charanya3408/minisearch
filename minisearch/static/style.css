@@ -56,3 +56,11 @@ footer{max-width:1040px;margin:0 auto;padding:0 20px 40px;text-align:center;colo
 :focus-visible{outline:3px solid #8e92ff;outline-offset:2px}
 @media(max-width:760px){.hero{flex-direction:column;align-items:stretch;padding:26px}.hero svg{display:none}.res img,.res .ph{flex-basis:84px}}
 @media(prefers-reduced-motion:reduce){.card{transition:none}}
+.answer{position:relative;margin:0 0 22px;padding:22px 26px;border-radius:26px;color:#fff;background:linear-gradient(120deg,#0ea5e9,#19d3a2);box-shadow:0 20px 40px -24px rgba(14,165,233,.8)}
+.answer .tag{display:inline-block;margin-bottom:8px;padding:2px 14px;border-radius:99px;background:rgba(255,255,255,.28);font-weight:700;font-size:14px}
+.answer p{margin:0 0 8px;font-size:19px;line-height:1.5}
+.answer a{display:inline-block;font-weight:700;text-decoration:underline}
+.answer small{display:block;margin-top:6px;opacity:.9}
+.answer mark{background:rgba(255,255,255,.35);color:#fff}
+.badge{float:right;margin-left:10px;padding:2px 12px;border-radius:99px;background:#fff3c4;font-size:13px;font-weight:700}
+h2.sec small{font-size:14px;font-weight:600;color:var(--mute);margin-left:8px}

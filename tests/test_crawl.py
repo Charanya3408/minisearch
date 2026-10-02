@@ -26,3 +26,20 @@ def test_crawl_batches_and_dedupes():
     docs = crawl(["A", "B"], fetch=fake_fetch, pause=0, size=1)
     assert len(calls) == 2
     assert len(docs) == 1
+
+
+def test_crawl_random_collects_new_articles_only():
+    from minisearch.crawl import crawl_random
+
+    counter = {"n": 0}
+
+    def fake_fetch(url):
+        counter["n"] += 1
+        base = counter["n"] * 10
+        pages = {str(base + i): {"pageid": base + i, "title": f"T{base + i}", "extract": "x" * 100} for i in range(3)}
+        return {"query": {"pages": pages}}
+
+    seen = {"11"}
+    docs = crawl_random(5, seen, fetch=fake_fetch, pause=0)
+    assert len(docs) == 5
+    assert "11" in seen and all(d["id"] != "11" for d in docs)

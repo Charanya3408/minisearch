@@ -1,4 +1,5 @@
 """Download Wikipedia article intros (text + thumbnail) into data/articles.json."""
+import argparse
 import json
 import time
 from pathlib import Path
@@ -8,6 +9,7 @@ from urllib.request import Request, urlopen
 API = "https://en.wikipedia.org/w/api.php"
 UA = "minisearch/0.2 (learning project; https://github.com/Charanya3408/minisearch)"
 OUT = Path("data/articles.json")
+LARGE = Path("data/articles_large.json")
 
 SEEDS = [
     "Photosynthesis", "Black hole", "DNA", "Evolution", "Periodic table", "Quantum mechanics",
@@ -33,8 +35,8 @@ SEEDS = [
 ]
 
 
-def fetch_json(url: str) -> dict:
-    with urlopen(Request(url, headers={"User-Agent": UA}), timeout=30) as response:
+def fetch_json(url: str, timeout: int = 30) -> dict:
+    with urlopen(Request(url, headers={"User-Agent": UA}), timeout=timeout) as response:
         return json.load(response)
 
 
@@ -77,11 +79,42 @@ def crawl(titles=SEEDS, fetch=fetch_json, pause: float = 0.4, size: int = 20) ->
     return docs
 
 
-def main() -> None:
+def random_url() -> str:
+    params = {
+        "action": "query", "format": "json", "generator": "random", "grnnamespace": 0,
+        "grnlimit": 20, "grnfilterredir": "nonredirects", "prop": "extracts|pageimages",
+        "exintro": 1, "explaintext": 1, "exlimit": "max", "piprop": "thumbnail", "pithumbsize": 480,
+    }
+    return API + "?" + urlencode(params)
+
+
+def crawl_random(count: int, seen: set, fetch=fetch_json, pause: float = 0.4) -> list[dict]:
+    """Collect extra articles from Wikipedia's random-article generator (20 per request)."""
+    docs, attempts = [], 0
+    while len(docs) < count and attempts < count // 5 + 50:
+        attempts += 1
+        for doc in parse_pages(fetch(random_url())):
+            if doc["id"] not in seen and len(docs) < count:
+                seen.add(doc["id"])
+                docs.append(doc)
+        if attempts % 10 == 0:
+            print(f"random articles: {len(docs)}/{count}")
+        time.sleep(pause)
+    return docs
+
+
+def main(argv=None) -> None:
+    parser = argparse.ArgumentParser(description="Download Wikipedia articles.")
+    parser.add_argument("--random", type=int, default=0, help="also download N random articles")
+    args = parser.parse_args(argv)
     docs = crawl()
-    OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps(docs), encoding="utf-8")
-    print(f"Saved {len(docs)} articles to {OUT}")
+    out = OUT
+    if args.random:
+        docs += crawl_random(args.random, {d["id"] for d in docs})
+        out = LARGE
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(json.dumps(docs), encoding="utf-8")
+    print(f"Saved {len(docs)} articles to {out}")
 
 
 if __name__ == "__main__":

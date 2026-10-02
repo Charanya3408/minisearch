@@ -4,3 +4,4 @@ __pycache__/
 *.json
 !data/articles.json
 .DS_Store
+data/articles_large.json

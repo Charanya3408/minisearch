@@ -3,7 +3,8 @@ import re
 
 STOPWORDS = frozenset(
     "a an and are as at be but by for if in into is it no not of on or such "
-    "that the their then there these they this to was will with".split()
+    "that the their then there these they this to was will with "
+    "what who whom which when where why how does do did can could should would".split()
 )
 _TOKEN = re.compile(r"[a-z0-9]+")
 

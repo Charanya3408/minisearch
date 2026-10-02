@@ -38,5 +38,34 @@ Pages: search home, ranked results with highlighted snippets, article view with 
 articles, and a "How it works" page with live index statistics. The server uses only the
 standard library. Article text and images come from Wikipedia (CC BY-SA).
 
-## Data
-Article text in data/articles.json comes from Wikipedia (CC BY-SA 4.0).
+## Answers
+
+The results page shows an **Answer** box when one sentence from the top articles covers
+the query's important words. It is extractive: it quotes a sentence and links to its source,
+it never generates text, and it stays silent when the corpus cannot answer.
+
+## Phrase matching
+
+The index stores word positions, so queries like "black hole" give a bonus to documents
+where the words sit next to each other, in order.
+
+## Benchmark
+
+    python -m minisearch.crawl --random 3000     # about 3,000 more Wikipedia articles (a few minutes)
+    python -m minisearch.benchmark               # index vs scanning every document
+
+The benchmark checks that both methods return identical top-10 lists, then prints timings
+per corpus size. Paste your own table here:
+
+| Documents | Index (ms/query) | Full scan (ms/query) | Speedup |
+|---:|---:|---:|---:|
+| _run the benchmark and fill this in_ | | | |
+
+## Live lookup
+
+The local index covers the crawled articles. When it has no good answer for a query, the app
+also asks Wikipedia's search API for the top articles, builds a small index over them, and
+extracts the best sentence with the same answer code. Those results are labelled
+"looked up live" and link to Wikipedia. Wikipedia chooses which articles to return; the
+sentence extraction and ranking of the local results are this project's own code.
+The live part needs an internet connection and only covers Wikipedia.
