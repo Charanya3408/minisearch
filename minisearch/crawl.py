@@ -1,5 +1,6 @@
 """Download Wikipedia article intros (text + thumbnail) into data/articles.json."""
 import argparse
+import re
 import json
 import time
 from pathlib import Path
@@ -53,7 +54,7 @@ def batch_url(titles: list[str]) -> str:
 def parse_pages(payload: dict) -> list[dict]:
     docs = []
     for page in payload.get("query", {}).get("pages", {}).values():
-        text = (page.get("extract") or "").strip()
+        text = re.sub(r"\(\s*[;,]\s*", "(", re.sub(r"\(\s*\)", "", page.get("extract") or "")).strip()
         if "missing" in page or len(text) < 80:
             continue
         title = page["title"]
