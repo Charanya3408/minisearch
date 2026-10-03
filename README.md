@@ -5,6 +5,8 @@ BM25 ranking, with no search libraries. Standard library only.
 
 ![CI](https://github.com/Charanya3408/minisearch/actions/workflows/ci.yml/badge.svg)
 
+![minisearch search page](docs/search.png)
+
 ## How it works
 
 1. **Tokenize**: lowercase, split on non-alphanumerics, drop stopwords, apply a small suffix stemmer.
