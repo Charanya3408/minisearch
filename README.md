@@ -59,7 +59,13 @@ per corpus size. Paste your own table here:
 
 | Documents | Index (ms/query) | Full scan (ms/query) | Speedup |
 |---:|---:|---:|---:|
-| _run the benchmark and fill this in_ | | | |
+| 100 | 0.009 | 0.023 | 2x |
+| 500 | 0.014 | 0.082 | 6x |
+| 1000 | 0.020 | 0.155 | 8x |
+| 2000 | 0.033 | 0.303 | 9x |
+| 3110 | 0.057 | 0.486 | 8x |
+
+Top-10 BM25 on Wikipedia article intros, 200 two-word queries per size, timed on a MacBook. The full scan is a deliberately optimised baseline. Both methods returned identical top-10 lists for every query. The speedup flattens after about 1,000 articles.
 
 ## Live lookup
 
