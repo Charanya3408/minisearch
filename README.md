@@ -7,6 +7,8 @@ BM25 ranking, with no search libraries. Standard library only.
 
 ![minisearch search page](docs/search.png)
 
+**Live demo:** https://minisearch-dmmy.onrender.com (free hosting, so the first load after a quiet spell can take up to a minute)
+
 ## How it works
 
 1. **Tokenize**: lowercase, split on non-alphanumerics, drop stopwords, apply a small suffix stemmer.
