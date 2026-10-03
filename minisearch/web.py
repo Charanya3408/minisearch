@@ -1,6 +1,7 @@
 """A small multi-page web UI, served with the standard library only."""
 import html
 import json
+import os
 import random
 import re
 import time
@@ -254,7 +255,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self.page(200, site.home())
         elif path == "/search":
-            q = (qs.get("q") or [""])[0].strip()
+            q = (qs.get("q") or [""])[0].strip()[:200]
             self.page(200, site.results(q) if q else site.home())
         elif path.startswith("/doc/"):
             text = site.article(unquote(path[5:]))
@@ -279,15 +280,17 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def make_server(site: Site, port: int = 8000) -> ThreadingHTTPServer:
+def make_server(site: Site, port: int = 8000, host: str = "127.0.0.1") -> ThreadingHTTPServer:
     handler = type("SiteHandler", (Handler,), {"site": site})
-    return ThreadingHTTPServer(("127.0.0.1", port), handler)
+    return ThreadingHTTPServer((host, port), handler)
 
 
 def main() -> None:
     site = Site.load()
-    server = make_server(site, 8000)
-    print(f"minisearch: {len(site.index)} documents. Open http://127.0.0.1:8000  (Ctrl+C to stop)")
+    hosted = "PORT" in os.environ  # hosting services set PORT and need 0.0.0.0
+    port = int(os.environ.get("PORT", 8000))
+    server = make_server(site, port, "0.0.0.0" if hosted else "127.0.0.1")
+    print(f"minisearch: {len(site.index)} documents. Open http://127.0.0.1:{port}  (Ctrl+C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
